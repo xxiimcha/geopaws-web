@@ -4,6 +4,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import LoginPage from "./LoginPage";
 import LandingPage from "./LandingPage";
 import AddPets from "./components/AddPets";
+import ManagePets from "./components/ManagePets";
+import Reports from "./components/Reports";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -16,23 +18,27 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
-          {/* Redirect to login if not authenticated */}
           <Route
             path="/"
             element={isAuthenticated ? <LandingPage /> : <Navigate to="/login" />}
           />
           
-          {/* Login page */}
           <Route
             path="/login"
             element={<LoginPage onLoginSuccess={handleLoginSuccess} />}
           />
           
-          {/* Add Pets page (Protected) */}
           <Route
             path="/add-pets"
             element={isAuthenticated ? <AddPets /> : <Navigate to="/login" />}
           />
+          
+          <Route
+            path="/manage-pets"
+            element={isAuthenticated ? <ManagePets /> : <Navigate to="/login" />}
+          />
+          <Route path="/reports" element={<Reports />} />
+
         </Routes>
       </div>
     </Router>

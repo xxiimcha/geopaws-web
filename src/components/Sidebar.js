@@ -23,9 +23,6 @@ const Sidebar = () => {
 
   return (
     <SidebarContainer>
-      <Box display="flex" justifyContent="center" mb={2}>
-        <Avatar sx={{ bgcolor: "#1e88e5", width: 56, height: 56 }}>A</Avatar>
-      </Box>
       <Typography variant="h6" align="center" gutterBottom>
         Geopaws
       </Typography>
@@ -53,7 +50,7 @@ const Sidebar = () => {
               <ListItemText primary="Add Pets" />
             </ListItem>
             {/* Placeholder for Manage Pets */}
-            <ListItem button sx={{ pl: 4 }}>
+            <ListItem button sx={{ pl: 4 }} onClick={() => navigate('/manage-pets')}>
               <ListItemText primary="Manage Pets" />
             </ListItem>
           </List>
@@ -61,7 +58,7 @@ const Sidebar = () => {
 
         {/* Reports */}
         <ListItem button>
-          <ListItemIcon sx={{ color: "#fff" }}>
+          <ListItemIcon sx={{ color: "#fff" }} onClick={() => navigate('/reports')}>
             <Report />
           </ListItemIcon>
           <ListItemText primary="Reports" />
@@ -91,12 +88,6 @@ const Sidebar = () => {
           <ListItemText primary="Users" />
         </ListItem>
 
-        {/* Account/Profile Section */}
-        <Box sx={{ mt: 5, textAlign: "center", color: "#fff" }}>
-          <Avatar sx={{ bgcolor: "#1e88e5", width: 56, height: 56, margin: "auto" }}>M</Avatar>
-          <Typography variant="body1" sx={{ mt: 1 }}>Mathew</Typography>
-          <Typography variant="body2" sx={{ color: "#aaa" }}>Designer</Typography>
-        </Box>
       </List>
     </SidebarContainer>
   );

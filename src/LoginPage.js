@@ -1,4 +1,3 @@
-// src/LoginPage.js
 import React, { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -6,6 +5,7 @@ import { auth, db } from "./firebase";
 import { Box, Button, TextField, Typography, Alert, Container, Paper, CircularProgress, IconButton, InputAdornment } from "@mui/material";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";  // Import useNavigate for redirection
 
 // Create a blue theme using MUI's theme provider
 const theme = createTheme({
@@ -25,6 +25,7 @@ const LoginPage = ({ onLoginSuccess }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();  // Initialize useNavigate for redirection
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -47,6 +48,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         console.log("Admin login successful for:", user.email);
         setLoading(false);  // Stop loading
         onLoginSuccess();  // Login success for admin
+        navigate("/");  // Navigate to dashboard or landing page after successful login
       } else {
         console.log("Failed: User is not an admin.");
         setLoading(false);  // Stop loading
