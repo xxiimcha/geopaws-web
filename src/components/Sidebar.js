@@ -1,7 +1,7 @@
 // src/components/Sidebar.js
 import React, { useState } from "react";
-import { List, ListItem, ListItemText, ListItemIcon, Collapse, Avatar, Typography, Box } from "@mui/material";
-import { ExpandLess, ExpandMore, Home, Pets, Report, Message, Feedback, Person } from "@mui/icons-material";
+import { List, ListItem, ListItemText, ListItemIcon, Collapse, Typography } from "@mui/material";
+import { ExpandLess, ExpandMore, Home, Pets, Report, Message, Feedback, Person, Assignment, ContactMail } from "@mui/icons-material";
 import { styled } from "@mui/system";
 import { useNavigate } from "react-router-dom";  // Import useNavigate for navigation
 
@@ -45,27 +45,33 @@ const Sidebar = () => {
         </ListItem>
         <Collapse in={openPets} timeout="auto" unmountOnExit>
           <List component="div" disablePadding>
-            {/* Navigate to Add Pets */}
             <ListItem button sx={{ pl: 4 }} onClick={() => navigate('/add-pets')}>
               <ListItemText primary="Add Pets" />
             </ListItem>
-            {/* Placeholder for Manage Pets */}
             <ListItem button sx={{ pl: 4 }} onClick={() => navigate('/manage-pets')}>
               <ListItemText primary="Manage Pets" />
             </ListItem>
           </List>
         </Collapse>
 
-        {/* Reports */}
-        <ListItem button>
-          <ListItemIcon sx={{ color: "#fff" }} onClick={() => navigate('/reports')}>
-            <Report />
+        {/* Pet Reports */}
+        <ListItem button onClick={() => navigate('/pet-reports')}>
+          <ListItemIcon sx={{ color: "#fff" }}>
+            <Assignment />
           </ListItemIcon>
-          <ListItemText primary="Reports" />
+          <ListItemText primary="Pet Reports" />
+        </ListItem>
+
+        {/* Requests */}
+        <ListItem button onClick={() => navigate('/requests')}>
+          <ListItemIcon sx={{ color: "#fff" }}>
+            <ContactMail />
+          </ListItemIcon>
+          <ListItemText primary="Requests" />
         </ListItem>
 
         {/* Messages */}
-        <ListItem button>
+        <ListItem button onClick={() => navigate('/messages')}>
           <ListItemIcon sx={{ color: "#fff" }}>
             <Message />
           </ListItemIcon>
@@ -73,7 +79,7 @@ const Sidebar = () => {
         </ListItem>
 
         {/* Feedback */}
-        <ListItem button>
+        <ListItem button onClick={() => navigate('/feedback')}>
           <ListItemIcon sx={{ color: "#fff" }}>
             <Feedback />
           </ListItemIcon>
@@ -81,17 +87,15 @@ const Sidebar = () => {
         </ListItem>
 
         {/* Users */}
-        <ListItem button>
+        <ListItem button onClick={() => navigate('/users')}>
           <ListItemIcon sx={{ color: "#fff" }}>
             <Person />
           </ListItemIcon>
           <ListItemText primary="Users" />
         </ListItem>
-
       </List>
     </SidebarContainer>
   );
 };
 
 export default Sidebar;
-

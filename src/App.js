@@ -6,6 +6,9 @@ import LandingPage from "./LandingPage";
 import AddPets from "./components/AddPets";
 import ManagePets from "./components/ManagePets";
 import Reports from "./components/Reports";
+import Feedback from "./components/Feedback";
+import ManagePetReports from './components/ManagePetReports';
+import ManageRequests from './components/ManageRequests';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -37,6 +40,15 @@ function App() {
             path="/manage-pets"
             element={isAuthenticated ? <ManagePets /> : <Navigate to="/login" />}
           />
+
+          <Route
+            path="/feedback"
+            element={isAuthenticated ? <Feedback /> : <Navigate to="/login" />}
+          />
+
+          <Route path="/pet-reports" element={<ManagePetReports />} />
+          <Route path="/requests" element={<ManageRequests />} />
+
           <Route path="/reports" element={<Reports />} />
 
         </Routes>
