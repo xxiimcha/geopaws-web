@@ -1,67 +1,73 @@
-// src/components/ManageRequests.js
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, Box, TablePagination, Button, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import Sidebar from './Sidebar';
+import React, { useState, useEffect } from "react";
+import { collection, getDocs, doc, deleteDoc, getDoc, updateDoc } from "firebase/firestore";
+import { db } from "../firebase";
+import {
+  Table,
+  Button,
+  Typography,
+  Modal,
+  Badge,
+  message,
+  Card,
+  Space,
+  Descriptions,
+} from "antd";
+import Sidebar from "./Sidebar";
+
+const { Title } = Typography;
 
 const ManageRequests = () => {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [petDetails, setPetDetails] = useState(null);
   const [userDetails, setUserDetails] = useState(null);
-  const [open, setOpen] = useState(false);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [loading, setLoading] = useState(true);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   // Fetch requests from Firestore
   useEffect(() => {
     const fetchRequests = async () => {
-      const requestsCollection = collection(db, 'request');
-      const requestsSnapshot = await getDocs(requestsCollection);
-      const requestsList = requestsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setRequests(requestsList);
+      try {
+        const requestsCollection = collection(db, "request");
+        const requestsSnapshot = await getDocs(requestsCollection);
+        const requestsList = requestsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setRequests(requestsList);
+      } catch (error) {
+        console.error("Error fetching requests:", error);
+        message.error("Failed to load requests.");
+      } finally {
+        setLoading(false);
+      }
     };
-
     fetchRequests();
   }, []);
 
-  // Handle page change
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
-
-  // Handle rows per page change
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  // Handle view request details
+  // Fetch additional details and open modal
   const handleView = async (request) => {
-    setSelectedRequest(request);
+    try {
+      setSelectedRequest(request);
 
-    // Fetch pet details
-    const petDoc = await getDoc(doc(db, 'pet', request.petId));
-    if (petDoc.exists()) {
-      setPetDetails(petDoc.data());
+      // Fetch pet details
+      const petDoc = await getDoc(doc(db, "pet", request.petId));
+      setPetDetails(petDoc.exists() ? petDoc.data() : null);
+
+      // Fetch user details
+      const userDoc = await getDoc(doc(db, "users", request.uid));
+      setUserDetails(userDoc.exists() ? userDoc.data() : null);
+
+      setIsModalVisible(true);
+    } catch (error) {
+      console.error("Error fetching details:", error);
+      message.error("Failed to load additional details.");
     }
-
-    // Fetch user details
-    const userDoc = await getDoc(doc(db, 'users', request.uid));
-    if (userDoc.exists()) {
-      setUserDetails(userDoc.data());
-    }
-
-    setOpen(true);
   };
 
-  // Close dialog
+  // Close modal
   const handleClose = () => {
-    setOpen(false);
+    setIsModalVisible(false);
     setSelectedRequest(null);
     setPetDetails(null);
     setUserDetails(null);
@@ -69,160 +75,163 @@ const ManageRequests = () => {
 
   // Handle delete request
   const handleDelete = async (requestId) => {
-    await deleteDoc(doc(db, 'request', requestId));
-    setRequests((prevRequests) => prevRequests.filter((request) => request.id !== requestId));
+    try {
+      await deleteDoc(doc(db, "request", requestId));
+      setRequests((prevRequests) => prevRequests.filter((req) => req.id !== requestId));
+      message.success("Request deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting request:", error);
+      message.error("Failed to delete request.");
+    }
   };
 
-  // Handle approve request
+  // Handle Approve Request
   const handleApprove = async () => {
-    if (selectedRequest) {
-      const requestRef = doc(db, 'request', selectedRequest.id);
-      await updateDoc(requestRef, { status: 'Approved' });
-      setRequests((prevRequests) =>
-        prevRequests.map((request) =>
-          request.id === selectedRequest.id ? { ...request, status: 'Approved' } : request
-        )
-      );
-      handleClose();
+    await updateStatus("Approved");
+  };
+
+  // Handle Decline Request
+  const handleDecline = async () => {
+    await updateStatus("Declined");
+  };
+
+  // Update request status
+  const updateStatus = async (status) => {
+    try {
+      if (selectedRequest) {
+        const requestRef = doc(db, "request", selectedRequest.id);
+        await updateDoc(requestRef, { status });
+        setRequests((prevRequests) =>
+          prevRequests.map((req) =>
+            req.id === selectedRequest.id ? { ...req, status } : req
+          )
+        );
+        message.success(`Request ${status.toLowerCase()} successfully!`);
+        handleClose();
+      }
+    } catch (error) {
+      console.error("Error updating status:", error);
+      message.error("Failed to update status.");
     }
   };
 
-  // Handle decline request
-  const handleDecline = async () => {
-    if (selectedRequest) {
-      const requestRef = doc(db, 'request', selectedRequest.id);
-      await updateDoc(requestRef, { status: 'Declined' });
-      setRequests((prevRequests) =>
-        prevRequests.map((request) =>
-          request.id === selectedRequest.id ? { ...request, status: 'Declined' } : request
-        )
-      );
-      handleClose();
-    }
-  };
+  // Table columns
+  const columns = [
+    {
+      title: "Full Name",
+      dataIndex: "fullname",
+      key: "fullname",
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (status) => (
+        <Badge
+          status={
+            status === "Approved"
+              ? "success"
+              : status === "Declined"
+              ? "error"
+              : "processing"
+          }
+          text={status}
+        />
+      ),
+    },
+    {
+      title: "Actions",
+      key: "actions",
+      render: (_, record) => (
+        <Space>
+          <Button type="link" onClick={() => handleView(record)}>
+            View
+          </Button>
+          <Button type="link" danger onClick={() => handleDelete(record.id)}>
+            Delete
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <Box sx={{ display: "flex" }}>
-      <Sidebar /> {/* Sidebar displayed on the left */}
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      {/* Sidebar */}
+      <Sidebar />
 
-      <Box sx={{ flexGrow: 1, padding: "20px" }}>
-        <Typography variant="h4" gutterBottom>
-          Manage Requests
-        </Typography>
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Full Name</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {requests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((request) => (
-                <TableRow key={request.id}>
-                  <TableCell>{request.fullname}</TableCell>
-                  <TableCell>{request.status}</TableCell>
-                  <TableCell>
-                    <Button variant="outlined" color="primary" onClick={() => handleView(request)} sx={{ marginRight: 1 }}>
-                      View
-                    </Button>
-                    <Button variant="outlined" color="secondary" onClick={() => handleDelete(request.id)}>
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <TablePagination
-          component="div"
-          count={requests.length}
-          page={page}
-          onPageChange={handleChangePage}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          rowsPerPageOptions={[5, 10, 25]}
-        />
+      {/* Main Content */}
+      <div style={{ flexGrow: 1, padding: "20px" }}>
+        <Card bordered style={{ marginBottom: "20px", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+          <Title level={3} style={{ textAlign: "center" }}>
+            Manage Requests
+          </Title>
+        </Card>
 
-        {/* Dialog for Viewing Details */}
-        <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-          <DialogTitle>Request Details</DialogTitle>
-          <DialogContent dividers>
-            <TableContainer component={Paper}>
-              <Table>
-                <TableBody>
-                  {selectedRequest && (
-                    <>
-                      <TableRow>
-                        <TableCell><strong>Full Name</strong></TableCell>
-                        <TableCell>{selectedRequest.fullname}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell><strong>Status</strong></TableCell>
-                        <TableCell>{selectedRequest.status}</TableCell>
-                      </TableRow>
-                    </>
-                  )}
+        {/* Table */}
+        <Card>
+          <Table
+            dataSource={requests}
+            columns={columns}
+            rowKey="id"
+            loading={loading}
+            pagination={{ pageSize: 5 }}
+            bordered
+          />
+        </Card>
 
-                  {userDetails && (
-                    <>
-                      <TableRow>
-                        <TableCell><strong>User Email</strong></TableCell>
-                        <TableCell>{userDetails.email}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell><strong>Contact</strong></TableCell>
-                        <TableCell>{userDetails.contact}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell><strong>Address</strong></TableCell>
-                        <TableCell>{userDetails.address}</TableCell>
-                      </TableRow>
-                    </>
-                  )}
-
-                  {petDetails && (
-                    <>
-                      <TableRow>
-                        <TableCell><strong>Pet Name</strong></TableCell>
-                        <TableCell>{petDetails.first_owner}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell><strong>Breed</strong></TableCell>
-                        <TableCell>{petDetails.breed}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell><strong>Age</strong></TableCell>
-                        <TableCell>{petDetails.age}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell><strong>Health Issues</strong></TableCell>
-                        <TableCell>{petDetails.health_issues}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell><strong>Additional Details</strong></TableCell>
-                        <TableCell>{petDetails.additional_details}</TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </DialogContent>
-          <DialogActions>
-            {selectedRequest && selectedRequest.status === "Pending" && (
+        {/* Modal */}
+        <Modal
+          title="Request Details"
+          visible={isModalVisible}
+          onCancel={handleClose}
+          footer={[
+            <Button key="close" onClick={handleClose}>
+              Close
+            </Button>,
+            selectedRequest?.status === "Pending" && (
               <>
-                <Button onClick={handleApprove} color="primary">Approve</Button>
-                <Button onClick={handleDecline} color="secondary">Decline</Button>
+                <Button key="approve" type="primary" onClick={handleApprove}>
+                  Approve
+                </Button>
+                <Button key="decline" type="danger" onClick={handleDecline}>
+                  Decline
+                </Button>
               </>
-            )}
-            <Button onClick={handleClose} color="primary">Close</Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
-    </Box>
+            ),
+          ]}
+          centered
+          width={700}
+        >
+          {selectedRequest && (
+            <Descriptions bordered size="small" column={1}>
+              <Descriptions.Item label="Full Name">{selectedRequest.fullname}</Descriptions.Item>
+              <Descriptions.Item label="Status">{selectedRequest.status}</Descriptions.Item>
+
+              {userDetails && (
+                <>
+                  <Descriptions.Item label="User Email">{userDetails.email}</Descriptions.Item>
+                  <Descriptions.Item label="Contact">{userDetails.contact}</Descriptions.Item>
+                  <Descriptions.Item label="Address">{userDetails.address}</Descriptions.Item>
+                </>
+              )}
+
+              {petDetails && (
+                <>
+                  <Descriptions.Item label="Pet Name">{petDetails.first_owner}</Descriptions.Item>
+                  <Descriptions.Item label="Breed">{petDetails.breed}</Descriptions.Item>
+                  <Descriptions.Item label="Age">{petDetails.age}</Descriptions.Item>
+                  <Descriptions.Item label="Health Issues">{petDetails.health_issues}</Descriptions.Item>
+                  <Descriptions.Item label="Additional Details">
+                    {petDetails.additional_details}
+                  </Descriptions.Item>
+                </>
+              )}
+            </Descriptions>
+          )}
+        </Modal>
+      </div>
+    </div>
   );
 };
 
