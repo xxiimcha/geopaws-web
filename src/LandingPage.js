@@ -1,56 +1,68 @@
-// src/LandingPage.js
 import React from "react";
-import { Box, Button, Typography, Container, Paper } from "@mui/material";
-import Sidebar from "./components/Sidebar"; // Import Sidebar component
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { Layout, Typography, Card, Row, Col, Button } from "antd";
+import { UserOutlined, FileOutlined, SettingOutlined } from "@ant-design/icons";
+import Sidebar from "./components/Sidebar";
+import HeaderBar from "./components/HeaderBar"; // Reusable header with profile/logout
 
-// Create a blue theme using MUI's theme provider
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#1976d2', // Blue primary color
-    },
-    secondary: {
-      main: '#1e88e5',
-    },
-  },
-});
+const { Content } = Layout;
+const { Title, Text } = Typography;
 
-const LandingPage = () => {
+const LandingPage = ({ adminName }) => {
   return (
-    <ThemeProvider theme={theme}>
-      <Box sx={{ display: "flex", minHeight: "100vh" }}>
-        
-        {/* Sidebar */}
-        <Sidebar />
+    <Layout style={{ minHeight: "100vh" }}>
+      {/* Sidebar */}
+      <Sidebar />
 
-        {/* Main Content Area */}
-        <Box sx={{ flexGrow: 1, padding: 3 }}>
-          <Container maxWidth="lg">
-            <Paper elevation={3} sx={{ padding: 4 }}>
-              <Typography variant="h3" align="center" gutterBottom>
-                Welcome, Admin
-              </Typography>
-              <Typography variant="h6" align="center" sx={{ mb: 4 }}>
-                This is the admin dashboard.
-              </Typography>
-              <Box textAlign="center">
-                <Button variant="contained" color="primary" sx={{ mx: 1 }}>
-                  Manage Users
-                </Button>
-                <Button variant="contained" color="secondary" sx={{ mx: 1 }}>
-                  View Reports
-                </Button>
-                <Button variant="contained" color="primary" sx={{ mx: 1 }}>
-                  Settings
-                </Button>
-              </Box>
-            </Paper>
-          </Container>
-        </Box>
+      <Layout>
+        {/* Reusable Header */}
+        <HeaderBar userName={adminName || "Admin"} />
 
-      </Box>
-    </ThemeProvider>
+        {/* Main Content */}
+        <Content style={{ margin: "20px", background: "#fff", padding: "30px", borderRadius: "8px" }}>
+          <div style={{ textAlign: "center", marginBottom: "30px" }}>
+            <Title level={2} style={{ marginBottom: "10px" }}>
+              Welcome, {adminName || "Admin"}
+            </Title>
+            <Text type="secondary" style={{ fontSize: "16px" }}>
+              This is the admin dashboard. Use the options below to manage your system.
+            </Text>
+          </div>
+
+          {/* Quick Action Cards */}
+          <Row gutter={[16, 16]} justify="center">
+            <Col xs={24} sm={12} md={8}>
+              <Card hoverable bordered style={{ textAlign: "center" }}>
+                <UserOutlined style={{ fontSize: "40px", color: "#1890ff", marginBottom: "10px" }} />
+                <Title level={4}>Manage Users</Title>
+                <Button type="primary" onClick={() => console.log("Manage Users")}>
+                  Go to Users
+                </Button>
+              </Card>
+            </Col>
+
+            <Col xs={24} sm={12} md={8}>
+              <Card hoverable bordered style={{ textAlign: "center" }}>
+                <FileOutlined style={{ fontSize: "40px", color: "#52c41a", marginBottom: "10px" }} />
+                <Title level={4}>View Reports</Title>
+                <Button type="primary" onClick={() => console.log("View Reports")}>
+                  Go to Reports
+                </Button>
+              </Card>
+            </Col>
+
+            <Col xs={24} sm={12} md={8}>
+              <Card hoverable bordered style={{ textAlign: "center" }}>
+                <SettingOutlined style={{ fontSize: "40px", color: "#faad14", marginBottom: "10px" }} />
+                <Title level={4}>Settings</Title>
+                <Button type="primary" onClick={() => console.log("Settings")}>
+                  Go to Settings
+                </Button>
+              </Card>
+            </Col>
+          </Row>
+        </Content>
+      </Layout>
+    </Layout>
   );
 };
 
