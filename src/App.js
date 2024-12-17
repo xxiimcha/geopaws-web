@@ -9,6 +9,7 @@ import Reports from "./components/Reports";
 import Feedback from "./components/Feedback";
 import ManagePetReports from './components/ManagePetReports';
 import ManageRequests from './components/ManageRequests';
+import ManageUsers from './components/ManageUsers';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -48,6 +49,7 @@ function App() {
 
           <Route path="/pet-reports" element={<ManagePetReports />} />
           <Route path="/requests" element={<ManageRequests />} />
+          <Route path="/users" element={<ManageUsers />} />
 
           <Route path="/reports" element={<Reports />} />
 
