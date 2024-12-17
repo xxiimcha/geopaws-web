@@ -1,13 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { collection, getDocs, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
-import { Table, Button, Typography, Card, Modal, Select, Input, message, Space, Badge } from "antd";
+import {
+  Table,
+  Button,
+  Typography,
+  Card,
+  Modal,
+  Select,
+  Input,
+  message,
+  Space,
+  Badge,
+} from "antd";
 import Sidebar from "./Sidebar";
+import HeaderBar from "./HeaderBar"; // Import the reusable header
 
 const { Title } = Typography;
 const { Option } = Select;
 
-const ManagePetReports = () => {
+const ManagePetReports = ({ adminName }) => {
   const [reports, setReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
   const [status, setStatus] = useState("");
@@ -111,7 +123,7 @@ const ManagePetReports = () => {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (status) => renderStatusBadge(status), // Render status with badges
+      render: (status) => renderStatusBadge(status),
     },
     {
       title: "Actions",
@@ -135,82 +147,88 @@ const ManagePetReports = () => {
       <Sidebar />
 
       {/* Main Content */}
-      <div style={{ flexGrow: 1, padding: "20px" }}>
-        <Card bordered style={{ marginBottom: "20px", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
-          <Title level={3} style={{ textAlign: "center" }}>
-            Manage Pet Reports
-          </Title>
-        </Card>
+      <div style={{ flexGrow: 1 }}>
+        {/* HeaderBar */}
+        <HeaderBar userName={adminName || "Admin"} />
 
-        {/* Table */}
-        <Card>
-          <Table
-            dataSource={reports}
-            columns={columns}
-            rowKey="id"
-            loading={loading}
-            pagination={{ pageSize: 5 }}
-            bordered
-          />
-        </Card>
+        {/* Page Content */}
+        <div style={{ padding: "20px" }}>
+          <Card bordered style={{ marginBottom: "20px", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+            <Title level={3} style={{ textAlign: "center" }}>
+              Manage Pet Reports
+            </Title>
+          </Card>
 
-        {/* Modal for Viewing Details */}
-        <Modal
-          title="Pet Report Details"
-          visible={isModalVisible}
-          onCancel={() => setIsModalVisible(false)}
-          footer={[
-            <Button key="cancel" onClick={() => setIsModalVisible(false)}>
-              Cancel
-            </Button>,
-            <Button key="save" type="primary" onClick={handleSaveChanges}>
-              Save Changes
-            </Button>,
-          ]}
-        >
-          {selectedReport && (
-            <>
-              <p>
-                <strong>Concern:</strong> {selectedReport.pet_name}
-              </p>
-              <p>
-                <strong>Date Lost:</strong> {selectedReport.date_lost}
-              </p>
-              <p>
-                <strong>Time Lost:</strong> {selectedReport.time_lost}
-              </p>
-              <p>
-                <strong>Location Lost:</strong> {selectedReport.location_lost}
-              </p>
-              <p>
-                <strong>Additional Info:</strong> {selectedReport.additional_info}
-              </p>
-              <p>
-                <strong>User Email:</strong> {selectedReport.user}
-              </p>
+          {/* Table */}
+          <Card>
+            <Table
+              dataSource={reports}
+              columns={columns}
+              rowKey="id"
+              loading={loading}
+              pagination={{ pageSize: 5 }}
+              bordered
+            />
+          </Card>
 
-              {/* Status Dropdown */}
-              <Select
-                style={{ width: "100%", marginBottom: "16px" }}
-                value={status}
-                onChange={(value) => setStatus(value)}
-                placeholder="Select Status"
-              >
-                <Option value="In Progress">In Progress</Option>
-                <Option value="Resolved">Resolved</Option>
-                <Option value="Closed">Closed</Option>
-              </Select>
+          {/* Modal for Viewing Details */}
+          <Modal
+            title="Pet Report Details"
+            visible={isModalVisible}
+            onCancel={() => setIsModalVisible(false)}
+            footer={[
+              <Button key="cancel" onClick={() => setIsModalVisible(false)}>
+                Cancel
+              </Button>,
+              <Button key="save" type="primary" onClick={handleSaveChanges}>
+                Save Changes
+              </Button>,
+            ]}
+          >
+            {selectedReport && (
+              <>
+                <p>
+                  <strong>Concern:</strong> {selectedReport.pet_name}
+                </p>
+                <p>
+                  <strong>Date Lost:</strong> {selectedReport.date_lost}
+                </p>
+                <p>
+                  <strong>Time Lost:</strong> {selectedReport.time_lost}
+                </p>
+                <p>
+                  <strong>Location Lost:</strong> {selectedReport.location_lost}
+                </p>
+                <p>
+                  <strong>Additional Info:</strong> {selectedReport.additional_info}
+                </p>
+                <p>
+                  <strong>User Email:</strong> {selectedReport.user}
+                </p>
 
-              {/* Remarks Input */}
-              <Input.TextArea
-                rows={3}
-                placeholder="Add remarks..."
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-              />
-            </>
-          )}
-        </Modal>
+                {/* Status Dropdown */}
+                <Select
+                  style={{ width: "100%", marginBottom: "16px" }}
+                  value={status}
+                  onChange={(value) => setStatus(value)}
+                  placeholder="Select Status"
+                >
+                  <Option value="In Progress">In Progress</Option>
+                  <Option value="Resolved">Resolved</Option>
+                  <Option value="Closed">Closed</Option>
+                </Select>
+
+                {/* Remarks Input */}
+                <Input.TextArea
+                  rows={3}
+                  placeholder="Add remarks..."
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                />
+              </>
+            )}
+          </Modal>
+        </div>
       </div>
     </div>
   );

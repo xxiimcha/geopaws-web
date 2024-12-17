@@ -11,18 +11,25 @@ import {
   Card,
   Space,
   Descriptions,
+  Image,
+  Tabs, Input,
 } from "antd";
 import Sidebar from "./Sidebar";
+import HeaderBar from "./HeaderBar"; // Import the reusable HeaderBar component
 
-const { Title } = Typography;
+const { Text, Title } = Typography;
+const { TabPane } = Tabs;
 
-const ManageRequests = () => {
+const ManageRequests = ({ adminName }) => {
   const [requests, setRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [petDetails, setPetDetails] = useState(null);
   const [userDetails, setUserDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState("All");
+  const [declineReason, setDeclineReason] = useState("");
 
   // Fetch requests from Firestore
   useEffect(() => {
@@ -35,6 +42,7 @@ const ManageRequests = () => {
           ...doc.data(),
         }));
         setRequests(requestsList);
+        setFilteredRequests(requestsList);
       } catch (error) {
         console.error("Error fetching requests:", error);
         message.error("Failed to load requests.");
@@ -44,6 +52,18 @@ const ManageRequests = () => {
     };
     fetchRequests();
   }, []);
+
+  // Handle Tab Change
+  const handleTabChange = (key) => {
+    setActiveTab(key);
+    if (key === "All") {
+      setFilteredRequests(requests);
+    } else if (key === "Archived") {
+      setFilteredRequests(requests.filter((req) => req.status === "Archived"));
+    } else {
+      setFilteredRequests(requests.filter((req) => req.status === key));
+    }
+  };  
 
   // Fetch additional details and open modal
   const handleView = async (request) => {
@@ -73,27 +93,23 @@ const ManageRequests = () => {
     setUserDetails(null);
   };
 
-  // Handle delete request
-  const handleDelete = async (requestId) => {
+  // Archive a request instead of deleting
+  const handleArchive = async (requestId) => {
     try {
-      await deleteDoc(doc(db, "request", requestId));
-      setRequests((prevRequests) => prevRequests.filter((req) => req.id !== requestId));
-      message.success("Request deleted successfully!");
+      const requestRef = doc(db, "request", requestId);
+      await updateDoc(requestRef, { status: "Archived" });
+      setRequests((prevRequests) =>
+        prevRequests.map((req) =>
+          req.id === requestId ? { ...req, status: "Archived" } : req
+        )
+      );
+      message.success("Request archived successfully!");
     } catch (error) {
-      console.error("Error deleting request:", error);
-      message.error("Failed to delete request.");
+      console.error("Error archiving request:", error);
+      message.error("Failed to archive request.");
     }
   };
 
-  // Handle Approve Request
-  const handleApprove = async () => {
-    await updateStatus("Approved");
-  };
-
-  // Handle Decline Request
-  const handleDecline = async () => {
-    await updateStatus("Declined");
-  };
 
   // Update request status
   const updateStatus = async (status) => {
@@ -115,13 +131,55 @@ const ManageRequests = () => {
     }
   };
 
+  const handleApprove = () => updateStatus("Approved");
+  const handleDecline = () => {
+    Modal.confirm({
+      title: "Decline Request",
+      content: (
+        <div>
+          <p>Please provide a reason for declining this request:</p>
+          <Input.TextArea
+            rows={4}
+            placeholder="Enter decline reason"
+            onChange={(e) => setDeclineReason(e.target.value)}
+          />
+        </div>
+      ),
+      onOk: async () => {
+        if (!declineReason.trim()) {
+          message.error("Decline reason is required!");
+          return;
+        }
+        try {
+          const requestRef = doc(db, "request", selectedRequest.id);
+          await updateDoc(requestRef, { status: "Declined", declineReason });
+          setRequests((prevRequests) =>
+            prevRequests.map((req) =>
+              req.id === selectedRequest.id
+                ? { ...req, status: "Declined", declineReason }
+                : req
+            )
+          );
+          message.success("Request declined successfully!");
+          handleClose();
+        } catch (error) {
+          console.error("Error declining request:", error);
+          message.error("Failed to update status.");
+        } finally {
+          setDeclineReason("");
+        }
+      },
+      onCancel: () => {
+        setDeclineReason("");
+      },
+      okText: "Submit",
+      cancelText: "Cancel",
+    });
+  };
+
   // Table columns
   const columns = [
-    {
-      title: "Full Name",
-      dataIndex: "fullname",
-      key: "fullname",
-    },
+    { title: "Full Name", dataIndex: "fullname", key: "fullname" },
     {
       title: "Status",
       dataIndex: "status",
@@ -147,89 +205,138 @@ const ManageRequests = () => {
           <Button type="link" onClick={() => handleView(record)}>
             View
           </Button>
-          <Button type="link" danger onClick={() => handleDelete(record.id)}>
-            Delete
-          </Button>
+          {record.status !== "Archived" && (
+            <Button type="link" danger onClick={() => handleArchive(record.id)}>
+              Archive
+            </Button>
+          )}
         </Space>
       ),
-    },
+    },    
   ];
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      {/* Sidebar */}
       <Sidebar />
+      <div style={{ flexGrow: 1 }}>
+        <HeaderBar userName={adminName || "Admin"} />
+        <div style={{ padding: "20px" }}>
+          <Card bordered style={{ marginBottom: "20px" }}>
+            <Title level={3} style={{ textAlign: "center" }}>
+              Manage Requests
+            </Title>
+          </Card>
 
-      {/* Main Content */}
-      <div style={{ flexGrow: 1, padding: "20px" }}>
-        <Card bordered style={{ marginBottom: "20px", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
-          <Title level={3} style={{ textAlign: "center" }}>
-            Manage Requests
-          </Title>
-        </Card>
+          {/* Tabs */}
+          <Tabs defaultActiveKey="All" onChange={handleTabChange} centered>
+            <TabPane tab="All" key="All" />
+            <TabPane tab="Approved" key="Approved" />
+            <TabPane tab="Declined" key="Declined" />
+            <TabPane tab="Archived" key="Archived" />
+          </Tabs>
 
-        {/* Table */}
-        <Card>
-          <Table
-            dataSource={requests}
-            columns={columns}
-            rowKey="id"
-            loading={loading}
-            pagination={{ pageSize: 5 }}
-            bordered
-          />
-        </Card>
+          {/* Table */}
+          <Card>
+            <Table
+              dataSource={filteredRequests}
+              columns={columns}
+              rowKey="id"
+              loading={loading}
+              pagination={{ pageSize: 5 }}
+              bordered
+            />
+          </Card>
 
-        {/* Modal */}
-        <Modal
-          title="Request Details"
-          visible={isModalVisible}
-          onCancel={handleClose}
-          footer={[
-            <Button key="close" onClick={handleClose}>
-              Close
-            </Button>,
-            selectedRequest?.status === "Pending" && (
-              <>
-                <Button key="approve" type="primary" onClick={handleApprove}>
-                  Approve
-                </Button>
-                <Button key="decline" type="danger" onClick={handleDecline}>
-                  Decline
-                </Button>
-              </>
-            ),
-          ]}
-          centered
-          width={700}
-        >
-          {selectedRequest && (
-            <Descriptions bordered size="small" column={1}>
-              <Descriptions.Item label="Full Name">{selectedRequest.fullname}</Descriptions.Item>
-              <Descriptions.Item label="Status">{selectedRequest.status}</Descriptions.Item>
-
-              {userDetails && (
+          {/* Modal */}
+          <Modal
+            title={null}
+            visible={isModalVisible}
+            onCancel={handleClose}
+            footer={[
+              <Button key="close" onClick={handleClose}>
+                Close
+              </Button>,
+              selectedRequest?.status === "Pending" && (
                 <>
-                  <Descriptions.Item label="User Email">{userDetails.email}</Descriptions.Item>
-                  <Descriptions.Item label="Contact">{userDetails.contact}</Descriptions.Item>
-                  <Descriptions.Item label="Address">{userDetails.address}</Descriptions.Item>
+                  <Button key="approve" type="primary" onClick={handleApprove}>
+                    Approve
+                  </Button>
+                  <Button key="decline" type="danger" onClick={handleDecline}>
+                    Decline
+                  </Button>
                 </>
-              )}
+              ),
+            ]}
+            centered
+            width={700}
+          >
+            {selectedRequest && (
+              <Card style={{ textAlign: "center", borderRadius: "12px" }}>
+                <Image
+                  src={
+                    userDetails?.profile_image ||
+                    "https://via.placeholder.com/100?text=No+Image"
+                  }
+                  alt="User Profile"
+                  width={100}
+                  height={100}
+                  style={{
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    marginBottom: "20px",
+                  }}
+                />
+                <Title level={4}>{selectedRequest.fullname}</Title>
+                <Space direction="vertical" style={{ marginBottom: "20px" }}>
+                  <Badge
+                    status={
+                      selectedRequest.status === "Approved"
+                        ? "success"
+                        : selectedRequest.status === "Declined"
+                        ? "error"
+                        : "processing"
+                    }
+                    text={
+                      <Text type="secondary" style={{ fontSize: "16px" }}>
+                        {selectedRequest.status}
+                      </Text>
+                    }
+                  />
+                  {selectedRequest.status === "Declined" && selectedRequest.declineReason && (
+                    <Text type="danger" style={{ fontSize: "14px" }}>
+                      Reason: {selectedRequest.declineReason}
+                    </Text>
+                  )}
+                </Space>
 
-              {petDetails && (
-                <>
-                  <Descriptions.Item label="Pet Name">{petDetails.first_owner}</Descriptions.Item>
-                  <Descriptions.Item label="Breed">{petDetails.breed}</Descriptions.Item>
-                  <Descriptions.Item label="Age">{petDetails.age}</Descriptions.Item>
-                  <Descriptions.Item label="Health Issues">{petDetails.health_issues}</Descriptions.Item>
-                  <Descriptions.Item label="Additional Details">
-                    {petDetails.additional_details}
+                <Descriptions bordered column={1} style={{ marginTop: "20px" }}>
+                  <Descriptions.Item label="Email">
+                    {userDetails?.email || "N/A"}
                   </Descriptions.Item>
-                </>
-              )}
-            </Descriptions>
-          )}
-        </Modal>
+                  <Descriptions.Item label="Contact">
+                    {userDetails?.contact || "N/A"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Valid IDs">
+                    {userDetails?.valid_ids || "No valid IDs"}
+                  </Descriptions.Item>
+                  {petDetails && (
+                    <>
+                      <Descriptions.Item label="Pet Name">
+                        {petDetails.pet_name}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Type">
+                        {petDetails.type}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Age">
+                        {petDetails.age}
+                      </Descriptions.Item>
+                    </>
+                  )}
+                </Descriptions>
+              </Card>
+            )}
+          </Modal>
+        </div>
       </div>
     </div>
   );

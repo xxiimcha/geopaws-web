@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./LoginPage";
 import LandingPage from "./LandingPage";
@@ -7,9 +7,9 @@ import AddPets from "./components/AddPets";
 import ManagePets from "./components/ManagePets";
 import Reports from "./components/Reports";
 import Feedback from "./components/Feedback";
-import ManagePetReports from './components/ManagePetReports';
-import ManageRequests from './components/ManageRequests';
-import ManageUsers from './components/ManageUsers';
+import ManagePetReports from "./components/ManagePetReports";
+import ManageRequests from "./components/ManageRequests";
+import ManageUsers from "./components/ManageUsers";
 import ManageMessages from "./components/Messages";
 
 // Wrapper component to enforce authentication
@@ -19,12 +19,37 @@ const ProtectedRoute = ({ isAuthenticated, children }) => {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [adminUid, setAdminUid] = useState(null); // State to hold the authenticated admin UID
+  const [adminUid, setAdminUid] = useState(null);
+
+  // Load authentication state on app start
+  useEffect(() => {
+    const storedAuth = localStorage.getItem("isAuthenticated");
+    const storedUid = localStorage.getItem("adminUid");
+
+    if (storedAuth === "true" && storedUid) {
+      setIsAuthenticated(true);
+      setAdminUid(storedUid);
+    }
+  }, []);
 
   // Login handler
   const handleLoginSuccess = (uid) => {
     setIsAuthenticated(true);
     setAdminUid(uid);
+
+    // Persist login state in localStorage
+    localStorage.setItem("isAuthenticated", "true");
+    localStorage.setItem("adminUid", uid);
+  };
+
+  // Logout handler (Optional)
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setAdminUid(null);
+
+    // Clear localStorage
+    localStorage.removeItem("isAuthenticated");
+    localStorage.removeItem("adminUid");
   };
 
   return (
