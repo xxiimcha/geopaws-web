@@ -18,19 +18,28 @@ const LoginPage = ({ onLoginSuccess }) => {
   const handleLogin = async () => {
     setError("");
     setLoading(true);
-
+  
     try {
       console.log("Attempting login with email:", email);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
+      const user = userCredential.user; // Contains Firebase Authentication details
+      const userUid = user.uid; // Extract the Firebase Authentication UID
+  
+      console.log("Firebase Auth UID:", userUid);
+  
+      // Query to find the admin user in Firestore
       const q = query(collection(db, "users"), where("email", "==", user.email), where("type", "==", "admin"));
       const querySnapshot = await getDocs(q);
-
+  
       if (!querySnapshot.empty) {
+        const adminData = querySnapshot.docs[0].data(); // Fetch Firestore user data
+  
         console.log("Admin login successful for:", user.email);
+        console.log("Admin Firebase Auth UID:", userUid);
+        console.log("Admin Firestore Data:", adminData);
+  
         setLoading(false);
-        onLoginSuccess();
+        onLoginSuccess(userUid); // Pass the Firebase Auth UID to the parent component
         navigate("/"); // Navigate after successful login
       } else {
         console.log("Failed: User is not an admin.");
@@ -42,7 +51,7 @@ const LoginPage = ({ onLoginSuccess }) => {
       setLoading(false);
       setError("Failed to log in. Please check your credentials.");
     }
-  };
+  };  
 
   return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", backgroundColor: "#f0f2f5" }}>
