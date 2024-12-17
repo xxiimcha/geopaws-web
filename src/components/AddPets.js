@@ -1,184 +1,195 @@
-// src/components/AddPets.js
 import React, { useState } from 'react';
-import { TextField, Button, Box, Typography, Container, Paper, MenuItem, Grid } from '@mui/material';
-import { db } from '../firebase';
+import { Form, Input, Button, Typography, Upload, Select, DatePicker, Card, Row, Col, message } from 'antd';
+import { UploadOutlined } from '@ant-design/icons';
+import { db, storage } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
-import Sidebar from './Sidebar';  // Import Sidebar component
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import Sidebar from './Sidebar';
+
+const { Title } = Typography;
+const { Option } = Select;
 
 const AddPets = () => {
-  const [formData, setFormData] = useState({
-    age: '',
-    arrivaldate: '',
-    breed: '',
-    color: '',
-    images: '',
-    sex: '',
-    sizeweight: '',
-    status: '',
-    type: '',
-  });
+  const [form] = Form.useForm();
+  const [uploading, setUploading] = useState(false);
 
-  const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const onFinish = async (values) => {
+    console.log("Form Values Submitted:", values); // Log form values for debugging
+    setUploading(true);
+    let imageUrl = '';
+  
     try {
+      // Check and upload the image
+      if (values.imageFile && values.imageFile[0]) {
+        const imageFile = values.imageFile[0].originFileObj; // Correctly access the file object
+        console.log("Uploading File:", imageFile);
+  
+        const storageRef = ref(storage, `images/${imageFile.name}`);
+        const uploadTask = uploadBytesResumable(storageRef, imageFile);
+  
+        await new Promise((resolve, reject) => {
+          uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              console.log(`Upload Progress: ${progress}%`);
+            },
+            (error) => {
+              console.error("Error during upload:", error);
+              reject(error);
+            },
+            async () => {
+              imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              console.log("File successfully uploaded. URL:", imageUrl);
+              resolve();
+            }
+          );
+        });
+      } else {
+        throw new Error("No file uploaded or fileList is invalid.");
+      }
+  
+      // Remove the imageFile field before saving to Firestore
+      const { imageFile, ...cleanedValues } = values;
+  
+      // Add the uploaded image URL
+      const petData = {
+        ...cleanedValues,
+        images: imageUrl,
+        arrivaldate: values.arrivaldate.format('YYYY-MM-DD'),
+      };
+  
+      console.log("Saving to Firestore:", petData);
+  
       const petCollectionRef = collection(db, 'pet');
-      await addDoc(petCollectionRef, formData);
-      alert('Pet added successfully!');
+      await addDoc(petCollectionRef, petData);
+  
+      message.success('Pet added successfully!');
+      form.resetFields();
     } catch (error) {
-      console.error('Error adding pet: ', error);
-      alert('Failed to add pet. Try again.');
+      console.error("Error in onFinish:", error.message);
+      message.error(error.message || 'An unexpected error occurred. Please try again.');
+    } finally {
+      setUploading(false);
     }
   };
+  
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
       <Sidebar />
 
-      {/* Main Content - Add Pet Form */}
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-        <Container maxWidth="md" sx={{ marginTop: 8 }}>
-          <Paper elevation={3} sx={{ padding: 4 }}>
-            <Typography variant="h4" align="center" gutterBottom>
-              Add New Pet
-            </Typography>
-            <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 2 }}>
-              <Grid container spacing={2}>
-                {/* Age */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    margin="normal"
-                    required
-                    label="Age"
-                    name="age"
-                    value={formData.age}
-                    onChange={handleInputChange}
-                  />
-                </Grid>
+      {/* Main Content */}
+      <div style={{ flexGrow: 1, padding: '20px' }}>
+        <Card style={{ maxWidth: 800, margin: '0 auto', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <Title level={3} style={{ textAlign: 'center', marginBottom: '20px' }}>
+            Add New Pet
+          </Title>
+          <Form form={form} layout="vertical" onFinish={onFinish}>
+            <Row gutter={[16, 16]}>
+              {/* Fields */}
+              <Col xs={24} sm={12}>
+                <Form.Item name="age" label="Age" rules={[{ required: true }]}>
+                  <Input placeholder="3 years old" />
+                </Form.Item>
+              </Col>
 
-                {/* Arrival Date */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    margin="normal"
-                    required
-                    label="Arrival Date"
-                    name="arrivaldate"
-                    type="date"
-                    InputLabelProps={{ shrink: true }}
-                    value={formData.arrivaldate}
-                    onChange={handleInputChange}
-                  />
-                </Grid>
+              <Col xs={24} sm={12}>
+                <Form.Item name="arrivaldate" label="Arrival Date" rules={[{ required: true }]}>
+                  <DatePicker style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
 
-                {/* Breed */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    margin="normal"
-                    required
-                    label="Breed"
-                    name="breed"
-                    value={formData.breed}
-                    onChange={handleInputChange}
-                  />
-                </Grid>
+              <Col xs={24} sm={12}>
+                <Form.Item name="breed" label="Breed" rules={[{ required: true }]}>
+                  <Input placeholder="Calico Cat" />
+                </Form.Item>
+              </Col>
 
-                {/* Color */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    margin="normal"
-                    required
-                    label="Color"
-                    name="color"
-                    value={formData.color}
-                    onChange={handleInputChange}
-                  />
-                </Grid>
+              <Col xs={24} sm={12}>
+                <Form.Item name="color" label="Color" rules={[{ required: true }]}>
+                  <Input placeholder="Tricolor" />
+                </Form.Item>
+              </Col>
 
-                {/* Image URL */}
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    margin="normal"
-                    required
-                    label="Image URL"
-                    name="images"
-                    value={formData.images}
-                    onChange={handleInputChange}
-                  />
-                </Grid>
+              <Col xs={24} sm={12}>
+                <Form.Item name="sex" label="Sex" rules={[{ required: true }]}>
+                  <Select placeholder="Select sex">
+                    <Option value="Male">Male</Option>
+                    <Option value="Female">Female</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
 
-                {/* Sex */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    margin="normal"
-                    select
-                    label="Sex"
-                    name="sex"
-                    value={formData.sex}
-                    onChange={handleInputChange}
-                  >
-                    <MenuItem value="Male">Male</MenuItem>
-                    <MenuItem value="Female">Female</MenuItem>
-                  </TextField>
-                </Grid>
+              <Col xs={24} sm={12}>
+                <Form.Item name="sizeweight" label="Size/Weight" rules={[{ required: true }]}>
+                  <Input placeholder="2kg" />
+                </Form.Item>
+              </Col>
 
-                {/* Size/Weight */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    margin="normal"
-                    required
-                    label="Size/Weight"
-                    name="sizeweight"
-                    value={formData.sizeweight}
-                    onChange={handleInputChange}
-                  />
-                </Grid>
+              <Col xs={24} sm={12}>
+                <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+                  <Input placeholder="Available" />
+                </Form.Item>
+              </Col>
 
-                {/* Status */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    margin="normal"
-                    required
-                    label="Status"
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                  />
-                </Grid>
+              <Col xs={24} sm={12}>
+                <Form.Item name="type" label="Type" rules={[{ required: true }]}>
+                  <Input placeholder="Cat" />
+                </Form.Item>
+              </Col>
 
-                {/* Type */}
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    margin="normal"
-                    required
-                    label="Type"
-                    name="type"
-                    value={formData.type}
-                    onChange={handleInputChange}
-                  />
-                </Grid>
-              </Grid>
+              {/* New Fields */}
+              <Col xs={24}>
+                <Form.Item name="first_owner" label="First Owner" rules={[{ required: true }]}>
+                  <Input placeholder="John Doe" />
+                </Form.Item>
+              </Col>
 
-              <Button type="submit" fullWidth variant="contained" color="primary" sx={{ mt: 3 }}>
-                Add Pet
+              <Col xs={24}>
+                <Form.Item name="health_issues" label="Health Issues">
+                  <Input placeholder="Healthy" />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24}>
+                <Form.Item name="rescue_location" label="Rescue Location">
+                  <Input placeholder="Laguna" />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24}>
+                <Form.Item name="additional_details" label="Additional Details">
+                  <Input.TextArea placeholder="None" />
+                </Form.Item>
+              </Col>
+
+              {/* Image Upload */}
+              <Col xs={24}>
+                <Form.Item
+                  name="imageFile"
+                  label="Upload Image"
+                  valuePropName="fileList"
+                  getValueFromEvent={(e) => (Array.isArray(e) ? e : e && e.fileList)}
+                  rules={[{ required: true, message: 'Please upload an image' }]}
+                >
+                  <Upload beforeUpload={() => false} maxCount={1} accept="image/*">
+                    <Button icon={<UploadOutlined />}>Click to Upload</Button>
+                  </Upload>
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item>
+              <Button type="primary" htmlType="submit" loading={uploading} block>
+                {uploading ? 'Uploading...' : 'Add Pet'}
               </Button>
-            </Box>
-          </Paper>
-        </Container>
-      </Box>
-    </Box>
+            </Form.Item>
+          </Form>
+        </Card>
+      </div>
+    </div>
   );
 };
 
