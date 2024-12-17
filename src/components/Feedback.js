@@ -1,96 +1,123 @@
-// src/components/ManageFeedback.js
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, Box, TablePagination } from '@mui/material';
-import Sidebar from './Sidebar';
+import React, { useState, useEffect } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../firebase";
+import { Table, Typography, Card, Row, Col, Pagination, Spin, message } from "antd";
+import Sidebar from "./Sidebar";
+
+const { Title } = Typography;
 
 const ManageFeedback = () => {
   const [feedbacks, setFeedbacks] = useState([]);
   const [users, setUsers] = useState({});
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch feedbacks from Firestore
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
+  // Fetch feedbacks and users from Firestore
   useEffect(() => {
-    const fetchFeedbacks = async () => {
-      const feedbackCollection = collection(db, 'feedback');
-      const feedbackSnapshot = await getDocs(feedbackCollection);
-      const feedbackList = feedbackSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setFeedbacks(feedbackList);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch Feedbacks
+        const feedbackCollection = collection(db, "feedback");
+        const feedbackSnapshot = await getDocs(feedbackCollection);
+        const feedbackList = feedbackSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setFeedbacks(feedbackList);
+
+        // Fetch Users
+        const usersCollection = collection(db, "users");
+        const usersSnapshot = await getDocs(usersCollection);
+        const usersData = {};
+        usersSnapshot.forEach((doc) => {
+          usersData[doc.id] = doc.data();
+        });
+        setUsers(usersData);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        message.error("Failed to load feedbacks. Please try again.");
+      } finally {
+        setLoading(false);
+      }
     };
 
-    const fetchUsers = async () => {
-      const usersCollection = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersCollection);
-      const usersData = {};
-      usersSnapshot.forEach((doc) => {
-        usersData[doc.id] = doc.data();
-      });
-      setUsers(usersData);
-    };
-
-    fetchFeedbacks();
-    fetchUsers();
+    fetchData();
   }, []);
 
-  // Handle page change
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
+  // Handle Page Change
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
   };
 
-  // Handle rows per page change
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
+  // Table Columns
+  const columns = [
+    {
+      title: "Name",
+      dataIndex: "uid",
+      key: "userName",
+      render: (uid) => {
+        const user = users[uid];
+        return user ? `${user.firstname} ${user.lastname}` : "Unknown User";
+      },
+    },
+    {
+      title: "Feedback",
+      dataIndex: "feedback",
+      key: "feedback",
+    }
+  ];
+
+  // Paginate the data
+  const paginatedData = feedbacks.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
-    <Box sx={{ display: "flex" }}>
-      <Sidebar /> {/* Sidebar displayed on the left */}
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      {/* Sidebar */}
+      <Sidebar />
 
-      <Box sx={{ flexGrow: 1, padding: "20px" }}>
-        <Typography variant="h4" gutterBottom>
-          Manage Feedback
-        </Typography>
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>User Name</TableCell>
-                <TableCell>Feedback</TableCell>
-                <TableCell>User ID</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {feedbacks.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((feedback) => {
-                const user = users[feedback.uid];
-                const userName = user ? `${user.firstname} ${user.lastname}` : 'Unknown User';
-                return (
-                  <TableRow key={feedback.id}>
-                    <TableCell>{userName}</TableCell>
-                    <TableCell>{feedback.feedback}</TableCell>
-                    <TableCell>{userName}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <TablePagination
-          component="div"
-          count={feedbacks.length}
-          page={page}
-          onPageChange={handleChangePage}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          rowsPerPageOptions={[5, 10, 25]}
-        />
-      </Box>
-    </Box>
+      {/* Main Content */}
+      <div style={{ flexGrow: 1, padding: "20px" }}>
+        <Card bordered style={{ marginBottom: "20px", boxShadow: "0 4px 8px rgba(0,0,0,0.1)" }}>
+          <Title level={3} style={{ textAlign: "center", marginBottom: "0" }}>
+            Manage Feedback
+          </Title>
+        </Card>
+
+        {/* Table */}
+        <Card>
+          {loading ? (
+            <Spin size="large" style={{ display: "block", margin: "auto" }} />
+          ) : (
+            <>
+              <Table
+                dataSource={paginatedData}
+                columns={columns}
+                rowKey="id"
+                pagination={false}
+                bordered
+              />
+              {/* Pagination */}
+              <Row justify="center" style={{ marginTop: "20px" }}>
+                <Col>
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={feedbacks.length}
+                    onChange={handlePageChange}
+                    showSizeChanger={false}
+                  />
+                </Col>
+              </Row>
+            </>
+          )}
+        </Card>
+      </div>
+    </div>
   );
 };
 
