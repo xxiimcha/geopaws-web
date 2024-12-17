@@ -1,31 +1,29 @@
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { useNavigate } from "react-router-dom";
 import {
   Table,
   Button,
   Typography,
   Card,
-  Modal,
-  Select,
-  Input,
+  Tabs,
   message,
   Space,
   Badge,
 } from "antd";
 import Sidebar from "./Sidebar";
-import HeaderBar from "./HeaderBar"; // Import the reusable header
+import HeaderBar from "./HeaderBar";
 
 const { Title } = Typography;
-const { Option } = Select;
+const { TabPane } = Tabs;
 
 const ManagePetReports = ({ adminName }) => {
+  const navigate = useNavigate();
   const [reports, setReports] = useState([]);
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [status, setStatus] = useState("");
-  const [remarks, setRemarks] = useState("");
+  const [filteredReports, setFilteredReports] = useState([]); // Filtered reports based on tab
   const [loading, setLoading] = useState(true);
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState("All"); // Track active tab
 
   // Fetch reports from Firestore
   useEffect(() => {
@@ -38,6 +36,7 @@ const ManagePetReports = ({ adminName }) => {
           ...doc.data(),
         }));
         setReports(reportsList);
+        setFilteredReports(reportsList); // Default: Show all reports
       } catch (error) {
         console.error("Error fetching reports:", error);
         message.error("Failed to load pet reports.");
@@ -48,57 +47,32 @@ const ManagePetReports = ({ adminName }) => {
     fetchReports();
   }, []);
 
+  // Handle Tab Change
+  const handleTabChange = (key) => {
+    setActiveTab(key);
+    if (key === "All") {
+      setFilteredReports(reports);
+    } else {
+      setFilteredReports(reports.filter((report) => report.status === key));
+    }
+  };
+
   // Handle View Report
-  const handleView = (report) => {
-    setSelectedReport(report);
-    setStatus(report.status || "");
-    setRemarks(report.remarks || "");
-    setIsModalVisible(true);
+  const handleViewDetails = (id) => {
+    navigate(`/incident/${id}`);
   };
 
   // Handle Delete Report
   const handleDelete = async (reportId) => {
     try {
       await deleteDoc(doc(db, "pet_reports", reportId));
-      setReports((prev) => prev.filter((report) => report.id !== reportId));
+      const updatedReports = reports.filter((report) => report.id !== reportId);
+      setReports(updatedReports);
+      setFilteredReports(updatedReports);
       message.success("Report deleted successfully!");
     } catch (error) {
       console.error("Error deleting report:", error);
       message.error("Failed to delete report.");
-    }
-  };
-
-  // Save Status and Remarks
-  const handleSaveChanges = async () => {
-    if (selectedReport) {
-      try {
-        const reportRef = doc(db, "pet_reports", selectedReport.id);
-        await updateDoc(reportRef, { status, remarks });
-        setReports((prev) =>
-          prev.map((report) =>
-            report.id === selectedReport.id ? { ...report, status, remarks } : report
-          )
-        );
-        message.success("Report updated successfully!");
-        setIsModalVisible(false);
-      } catch (error) {
-        console.error("Error updating report:", error);
-        message.error("Failed to save changes.");
-      }
-    }
-  };
-
-  // Function to render status badges
-  const renderStatusBadge = (status) => {
-    switch (status) {
-      case "In Progress":
-        return <Badge status="processing" text="In Progress" />;
-      case "Resolved":
-        return <Badge status="success" text="Resolved" />;
-      case "Closed":
-        return <Badge status="error" text="Closed" />;
-      default:
-        return <Badge status="default" text="Unknown" />;
     }
   };
 
@@ -123,15 +97,28 @@ const ManagePetReports = ({ adminName }) => {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (status) => renderStatusBadge(status),
+      render: (status) => {
+        switch (status) {
+          case "In Progress":
+            return <Badge status="processing" text="In Progress" />;
+          case "Resolved":
+            return <Badge status="success" text="Resolved" />;
+          case "Closed":
+            return <Badge status="error" text="Closed" />;
+          case "Cancelled":
+            return <Badge status="default" text="Cancelled" />;
+          default:
+            return <Badge status="default" text="Unknown" />;
+        }
+      },
     },
     {
       title: "Actions",
       key: "actions",
       render: (_, record) => (
         <Space>
-          <Button type="link" onClick={() => handleView(record)}>
-            View
+          <Button type="primary" onClick={() => handleViewDetails(record.id)}>
+            View Details
           </Button>
           <Button type="link" danger onClick={() => handleDelete(record.id)}>
             Delete
@@ -159,10 +146,19 @@ const ManagePetReports = ({ adminName }) => {
             </Title>
           </Card>
 
+          {/* Tabs for Filtering */}
+          <Tabs defaultActiveKey="All" onChange={handleTabChange} centered>
+            <TabPane tab="All" key="All" />
+            <TabPane tab="In Progress" key="In Progress" />
+            <TabPane tab="Resolved" key="Resolved" />
+            <TabPane tab="Closed" key="Closed" />
+            <TabPane tab="Cancelled" key="Cancelled" />
+          </Tabs>
+
           {/* Table */}
           <Card>
             <Table
-              dataSource={reports}
+              dataSource={filteredReports}
               columns={columns}
               rowKey="id"
               loading={loading}
@@ -170,64 +166,6 @@ const ManagePetReports = ({ adminName }) => {
               bordered
             />
           </Card>
-
-          {/* Modal for Viewing Details */}
-          <Modal
-            title="Pet Report Details"
-            visible={isModalVisible}
-            onCancel={() => setIsModalVisible(false)}
-            footer={[
-              <Button key="cancel" onClick={() => setIsModalVisible(false)}>
-                Cancel
-              </Button>,
-              <Button key="save" type="primary" onClick={handleSaveChanges}>
-                Save Changes
-              </Button>,
-            ]}
-          >
-            {selectedReport && (
-              <>
-                <p>
-                  <strong>Concern:</strong> {selectedReport.pet_name}
-                </p>
-                <p>
-                  <strong>Date Lost:</strong> {selectedReport.date_lost}
-                </p>
-                <p>
-                  <strong>Time Lost:</strong> {selectedReport.time_lost}
-                </p>
-                <p>
-                  <strong>Location Lost:</strong> {selectedReport.location_lost}
-                </p>
-                <p>
-                  <strong>Additional Info:</strong> {selectedReport.additional_info}
-                </p>
-                <p>
-                  <strong>User Email:</strong> {selectedReport.user}
-                </p>
-
-                {/* Status Dropdown */}
-                <Select
-                  style={{ width: "100%", marginBottom: "16px" }}
-                  value={status}
-                  onChange={(value) => setStatus(value)}
-                  placeholder="Select Status"
-                >
-                  <Option value="In Progress">In Progress</Option>
-                  <Option value="Resolved">Resolved</Option>
-                  <Option value="Closed">Closed</Option>
-                </Select>
-
-                {/* Remarks Input */}
-                <Input.TextArea
-                  rows={3}
-                  placeholder="Add remarks..."
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                />
-              </>
-            )}
-          </Modal>
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import ManagePetReports from "./components/ManagePetReports";
 import ManageRequests from "./components/ManageRequests";
 import ManageUsers from "./components/ManageUsers";
 import ManageMessages from "./components/Messages";
+import IncidentDetails from "./components/IncidentDetails";
 
 // Wrapper component to enforce authentication
 const ProtectedRoute = ({ isAuthenticated, children }) => {
@@ -107,6 +108,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route path="/incident/:id" element={<IncidentDetails />} />
 
           <Route
             path="/requests"
