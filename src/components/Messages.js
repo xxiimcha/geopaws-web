@@ -1,37 +1,42 @@
-import React, { useState, useEffect } from "react";
-import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
+import React, { useState, useEffect, useRef } from "react";
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, where } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import { db, storage } from "../firebase";
-import { Layout, List, Avatar, Typography, Input, Button, Spin, message, Upload, Empty } from "antd";
+import { Layout, List, Avatar, Typography, Input, Button, Spin, message, Upload, Empty, Badge } from "antd";
 import { UserOutlined, SendOutlined, PaperClipOutlined } from "@ant-design/icons";
 import Sidebar from "./Sidebar";
 import HeaderBar from "./HeaderBar"; // Reusable header
 
 const { Sider, Content } = Layout;
 const { TextArea } = Input;
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 const ManageMessages = ({ adminUid, adminName }) => {
   const [customers, setCustomers] = useState([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
   const [messagesHistory, setMessagesHistory] = useState([]);
+  const [unreadCounts, setUnreadCounts] = useState({});
   const [messageText, setMessageText] = useState("");
   const [sending, setSending] = useState(false);
   const [file, setFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
+  const messagesEndRef = useRef(null); // Reference to the messages container
 
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
         const usersCollection = collection(db, "users");
-        const q = query(usersCollection, where("type", "==", "customer"));
-        const snapshot = await getDocs(q);
-
-        const customersList = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setCustomers(customersList);
+        const q = query(usersCollection, where("type", "==", "customer")); // Load only customers
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const customersList = querySnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          setCustomers(customersList);
+        });
+        return () => unsubscribe();
       } catch (error) {
         console.error("Error fetching customers:", error);
         message.error("Failed to load customers.");
@@ -43,34 +48,75 @@ const ManageMessages = ({ adminUid, adminName }) => {
     fetchCustomers();
   }, []);
 
-  const fetchMessages = async (userId) => {
-    try {
+  // Update unread message count
+  useEffect(() => {
+    const messagesCollection = collection(db, "messages");
+    const unsubscribe = onSnapshot(messagesCollection, (querySnapshot) => {
+      const unreadCountsTemp = {};
+      querySnapshot.docs.forEach((doc) => {
+        const message = doc.data();
+        const uids = [adminUid, message.sender_uid];
+        uids.sort();
+        const chatroomCode = uids.join("_");
+
+        if (message.status === "unread" && message.receiver_uid === adminUid) {
+          if (!unreadCountsTemp[message.sender_uid]) {
+            unreadCountsTemp[message.sender_uid] = 0;
+          }
+          unreadCountsTemp[message.sender_uid] += 1;
+        }
+      });
+
+      setUnreadCounts(unreadCountsTemp);
+    });
+
+    return () => unsubscribe();
+  }, [adminUid]);
+
+  useEffect(() => {
+    let unsubscribe = () => {};
+
+    if (selectedUser) {
+      const uids = [adminUid, selectedUser.id];
+      uids.sort();
+      const chatroomCode = uids.join("_");
+
       const messagesCollection = collection(db, "messages");
-      const snapshot = await getDocs(messagesCollection);
 
-      const allMessages = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      unsubscribe = onSnapshot(messagesCollection, (querySnapshot) => {
+        const allMessages = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-      const filteredMessages = allMessages.filter(
-        (msg) =>
-          (msg.sender_uid === adminUid && msg.receiver_uid === userId) ||
-          (msg.sender_uid === userId && msg.receiver_uid === adminUid)
-      );
+        const filteredMessages = allMessages.filter((msg) => msg.code === chatroomCode);
 
-      filteredMessages.sort((a, b) => a.timestamp.seconds - b.timestamp.seconds);
-      setMessagesHistory(filteredMessages);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      message.error("Failed to load messages.");
+        filteredMessages.sort((a, b) => a.timestamp.seconds - b.timestamp.seconds);
+
+        setMessagesHistory(filteredMessages);
+
+        // Scroll to the bottom when messages are updated
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+
+        filteredMessages
+          .filter((msg) => msg.sender_uid === selectedUser.id && msg.status === "unread")
+          .forEach(async (msg) => {
+            const messageRef = doc(db, "messages", msg.id);
+            await updateDoc(messageRef, { status: "read" });
+          });
+      });
     }
-  };
 
-  const handleSelectUser = async (user) => {
+    return () => unsubscribe();
+  }, [selectedUser, adminUid]);
+
+  const handleSelectUser = (user) => {
     setSelectedUser(user);
-    setMessagesHistory([]);
-    await fetchMessages(user.id);
+    const updatedCounts = { ...unreadCounts };
+    delete updatedCounts[user.id];
+    setUnreadCounts(updatedCounts);
   };
 
   const handleSendMessage = async () => {
@@ -90,6 +136,10 @@ const ManageMessages = ({ adminUid, adminName }) => {
         imageUrl = await getDownloadURL(storageRef);
       }
 
+      const uids = [adminUid, selectedUser.id];
+      uids.sort();
+      const chatroomCode = uids.join("_");
+
       const messagesCollection = collection(db, "messages");
       await addDoc(messagesCollection, {
         sender_uid: adminUid,
@@ -97,12 +147,19 @@ const ManageMessages = ({ adminUid, adminName }) => {
         text: messageText,
         image: imageUrl,
         timestamp: new Date(),
+        status: "unread",
+        code: chatroomCode,
       });
 
       setMessageText("");
       setFile(null);
-      await fetchMessages(selectedUser.id);
+      setImagePreview(null);
       message.success("Message sent successfully!");
+
+      // Scroll to the bottom after sending a message
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     } catch (error) {
       console.error("Error sending message:", error);
       message.error("Failed to send message.");
@@ -113,11 +170,24 @@ const ManageMessages = ({ adminUid, adminName }) => {
 
   const handleFileChange = (info) => {
     const file = info.file.originFileObj;
-    if (file && file.type.startsWith("image/")) {
-      setFile(file);
+
+    if (!file) {
+      message.error("No file selected.");
+      setFile(null);
+      setImagePreview(null);
+      return;
+    }
+
+    // Explicitly validate file type
+    const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
+    if (allowedTypes.includes(file.type)) {
+      setFile(file); // Save valid file
+      setImagePreview(URL.createObjectURL(file)); // Preview the image
       message.success("Image ready to send.");
     } else {
-      message.error("Only image files are allowed.");
+      setFile(null); // Clear file state
+      setImagePreview(null); // Clear preview
+      message.error("Only JPEG, PNG image files are allowed.");
     }
   };
 
@@ -132,11 +202,9 @@ const ManageMessages = ({ adminUid, adminName }) => {
     <Layout style={{ minHeight: "100vh" }}>
       <Sidebar />
       <Layout>
-        {/* HeaderBar */}
         <HeaderBar userName={adminName || "Admin"} />
 
         <Layout>
-          {/* Contacts Sidebar */}
           <Sider width={300} style={{ background: "#fff", borderRight: "1px solid #ddd" }}>
             <div style={{ padding: "20px", textAlign: "center" }}>
               <Title level={4}>Contacts</Title>
@@ -157,7 +225,11 @@ const ManageMessages = ({ adminUid, adminName }) => {
                   >
                     <List.Item.Meta
                       avatar={<Avatar icon={<UserOutlined />} />}
-                      title={<strong>{user.firstname} {user.lastname}</strong>}
+                      title={
+                        <Badge count={unreadCounts[user.id]} offset={[10, 0]}>
+                          <strong>{user.firstname} {user.lastname}</strong>
+                        </Badge>
+                      }
                       description={user.email}
                     />
                   </List.Item>
@@ -166,7 +238,6 @@ const ManageMessages = ({ adminUid, adminName }) => {
             )}
           </Sider>
 
-          {/* Conversation Content */}
           <Content style={{ padding: "20px", background: "#fff" }}>
             {selectedUser ? (
               <>
@@ -175,37 +246,45 @@ const ManageMessages = ({ adminUid, adminName }) => {
                 </Title>
                 <div style={{ height: "500px", overflowY: "auto", marginBottom: "10px" }}>
                   {messagesHistory.length > 0 ? (
-                    messagesHistory.map((msg) => (
-                      <div
-                        key={msg.id}
-                        style={{
-                          textAlign: msg.sender_uid === adminUid ? "right" : "left",
-                          marginBottom: "10px",
-                        }}
-                      >
-                        {msg.image && (
-                          <img
-                            src={msg.image}
-                            alt="attachment"
-                            style={{ maxWidth: "200px", borderRadius: "8px", marginBottom: "5px" }}
-                          />
-                        )}
-                        <div
-                          style={{
-                            display: "inline-block",
-                            background: msg.sender_uid === adminUid ? "#1890ff" : "#f0f0f0",
-                            color: msg.sender_uid === adminUid ? "#fff" : "#000",
-                            padding: "8px 12px",
-                            borderRadius: "8px",
-                          }}
-                        >
-                          {msg.text}
+                    messagesHistory.map((msg) => {
+                      const isSender = msg.sender_uid === adminUid;
+                      const alignmentStyle = isSender ? { textAlign: "right" } : { textAlign: "left" };
+                      const bubbleStyle = isSender
+                        ? { background: "#1890ff", color: "#fff" }
+                        : { background: "#f0f0f0", color: "#000" };
+
+                      return (
+                        <div key={msg.id} style={{ marginBottom: "10px", ...alignmentStyle }}>
+                          {msg.image && msg.image.trim() !== "" && (
+                            <img
+                              src={msg.image}
+                              alt="attachment"
+                              style={{
+                                maxWidth: "200px",
+                                borderRadius: "8px",
+                                marginBottom: "5px",
+                                display: "block",
+                              }}
+                            />
+                          )}
+                          <div
+                            style={{
+                              display: "inline-block",
+                              padding: "8px 12px",
+                              borderRadius: "8px",
+                              position: "relative",
+                              ...bubbleStyle,
+                            }}
+                          >
+                            {msg.text}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <Empty description="No messages yet" />
                   )}
+                  <div ref={messagesEndRef}></div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <TextArea
@@ -216,7 +295,12 @@ const ManageMessages = ({ adminUid, adminName }) => {
                     placeholder="Type your message..."
                     style={{ flex: 1, marginRight: "10px" }}
                   />
-                  <Upload beforeUpload={() => false} onChange={handleFileChange} accept="image/*" showUploadList={false}>
+                  <Upload
+                    beforeUpload={() => false}
+                    onChange={handleFileChange}
+                    accept="image/jpeg, image/png, image/jpg"
+                    showUploadList={false}
+                  >
                     <Button icon={<PaperClipOutlined />} type="text" />
                   </Upload>
                   <Button
@@ -226,6 +310,15 @@ const ManageMessages = ({ adminUid, adminName }) => {
                     loading={sending}
                   />
                 </div>
+                {imagePreview && (
+                  <div style={{ marginTop: "10px", textAlign: "center" }}>
+                    <img
+                      src={imagePreview}
+                      alt="Selected preview"
+                      style={{ maxWidth: "200px", borderRadius: "8px" }}
+                    />
+                  </div>
+                )}
               </>
             ) : (
               <Empty description="Select a contact to start messaging" />
