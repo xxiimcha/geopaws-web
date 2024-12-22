@@ -1,4 +1,3 @@
-// src/App.js
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./LoginPage";
@@ -30,11 +29,15 @@ function App() {
     if (storedAuth === "true" && storedUid) {
       setIsAuthenticated(true);
       setAdminUid(storedUid);
+      console.log("Admin UID loaded from localStorage:", storedUid);
+    } else {
+      console.warn("Admin UID not found in localStorage.");
     }
   }, []);
 
   // Login handler
   const handleLoginSuccess = (uid) => {
+    console.log("Admin logged in with UID:", uid);
     setIsAuthenticated(true);
     setAdminUid(uid);
 
@@ -43,7 +46,7 @@ function App() {
     localStorage.setItem("adminUid", uid);
   };
 
-  // Logout handler (Optional)
+  // Logout handler
   const handleLogout = () => {
     setIsAuthenticated(false);
     setAdminUid(null);
@@ -51,7 +54,13 @@ function App() {
     // Clear localStorage
     localStorage.removeItem("isAuthenticated");
     localStorage.removeItem("adminUid");
+    console.log("Admin logged out.");
   };
+
+  if (adminUid === null && isAuthenticated) {
+    // Render a fallback in case `adminUid` is temporarily unavailable
+    return <div>Loading...</div>;
+  }
 
   return (
     <Router>
@@ -68,7 +77,7 @@ function App() {
             path="/"
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated}>
-                <LandingPage adminUid={adminUid} />
+                <LandingPage adminUid={adminUid} onLogout={handleLogout} />
               </ProtectedRoute>
             }
           />
@@ -109,7 +118,14 @@ function App() {
             }
           />
 
-          <Route path="/incident/:id" element={<IncidentDetails />} />
+          <Route
+            path="/incident/:id"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                <IncidentDetails adminUid={adminUid} />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/requests"
