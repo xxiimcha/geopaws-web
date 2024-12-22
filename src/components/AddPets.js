@@ -13,6 +13,22 @@ const { Option } = Select;
 const AddPets = ({ adminName }) => {
   const [form] = Form.useForm();
   const [uploading, setUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null); // State for image preview
+
+  const handleImageChange = (fileList) => {
+    if (fileList && fileList[0]) {
+      const file = fileList[0].originFileObj;
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        setImagePreview(e.target.result); // Set the preview URL
+      };
+
+      reader.readAsDataURL(file);
+    } else {
+      setImagePreview(null); // Reset preview if no file is selected
+    }
+  };
 
   const onFinish = async (values) => {
     console.log("Form Values Submitted:", values);
@@ -40,18 +56,28 @@ const AddPets = ({ adminName }) => {
 
       const { imageFile, ...cleanedValues } = values;
 
+      // Remove undefined optional fields
       const petData = {
         ...cleanedValues,
         images: imageUrl,
         arrivaldate: values.arrivaldate.format('YYYY-MM-DD'),
       };
 
+      // Filter out undefined fields
+      Object.keys(petData).forEach((key) => {
+        if (petData[key] === undefined) {
+          delete petData[key];
+        }
+      });
+
       const petCollectionRef = collection(db, 'pet');
       await addDoc(petCollectionRef, petData);
 
       message.success('Pet added successfully!');
       form.resetFields();
+      setImagePreview(null); // Reset image preview
     } catch (error) {
+      console.error('Error adding pet:', error);
       message.error('Failed to add pet. Please try again.');
     } finally {
       setUploading(false);
@@ -73,6 +99,35 @@ const AddPets = ({ adminName }) => {
             </Title>
             <Form form={form} layout="vertical" onFinish={onFinish}>
               <Row gutter={[16, 16]}>
+                {/* Image Upload Section */}
+                <Col xs={24}>
+                  <Form.Item
+                    name="imageFile"
+                    label="Upload Image"
+                    valuePropName="fileList"
+                    getValueFromEvent={(e) => {
+                      const fileList = Array.isArray(e) ? e : e?.fileList;
+                      handleImageChange(fileList); // Update image preview
+                      return fileList;
+                    }}
+                    rules={[{ required: true, message: 'Please upload an image' }]}
+                  >
+                    <Upload beforeUpload={() => false} maxCount={1} accept="image/*">
+                      <Button icon={<UploadOutlined />}>Click to Upload</Button>
+                    </Upload>
+                  </Form.Item>
+                  {/* Image Preview */}
+                  {imagePreview && (
+                    <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        style={{ maxWidth: '100%', maxHeight: '200px', border: '1px solid #ddd', padding: '5px', borderRadius: '5px' }}
+                      />
+                    </div>
+                  )}
+                </Col>
+
                 {/* Pet Name */}
                 <Col xs={24} sm={12}>
                   <Form.Item name="pet_name" label="Pet Name" rules={[{ required: true, message: "Please enter the pet's name" }]}>
@@ -146,20 +201,6 @@ const AddPets = ({ adminName }) => {
                 <Col xs={24}>
                   <Form.Item name="additional_details" label="Additional Details">
                     <Input.TextArea placeholder="None" />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24}>
-                  <Form.Item
-                    name="imageFile"
-                    label="Upload Image"
-                    valuePropName="fileList"
-                    getValueFromEvent={(e) => (Array.isArray(e) ? e : e && e.fileList)}
-                    rules={[{ required: true, message: 'Please upload an image' }]}
-                  >
-                    <Upload beforeUpload={() => false} maxCount={1} accept="image/*">
-                      <Button icon={<UploadOutlined />}>Click to Upload</Button>
-                    </Upload>
                   </Form.Item>
                 </Col>
               </Row>
