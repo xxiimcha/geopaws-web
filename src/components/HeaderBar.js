@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Layout, Dropdown, Menu, Avatar, Typography, Badge, message } from "antd";
 import { BellOutlined, UserOutlined, LogoutOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import moment from "moment";
 
 const { Header } = Layout;
 const { Text } = Typography;
@@ -13,7 +14,6 @@ const HeaderBar = () => {
   const [userName, setUserName] = useState("Admin");
   const [adminUid, setAdminUid] = useState(null);
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     // Retrieve admin data from localStorage
@@ -39,60 +39,50 @@ const HeaderBar = () => {
       return;
     }
 
-    // Fetch unread messages grouped by sender
     const messagesQuery = query(
       collection(db, "messages"),
       where("receiver_uid", "==", adminUid),
       where("status", "==", "unread")
     );
 
-    const unsubscribe = onSnapshot(messagesQuery, async (snapshot) => {
-      const groupedNotifications = {};
-      for (const doc of snapshot.docs) {
-        const data = doc.data();
-        const senderUid = data.sender_uid;
+    const petReportsQuery = query(
+      collection(db, "pet_reports"),
+      where("status", "==", "In Progress")
+    );
 
-        if (!groupedNotifications[senderUid]) {
-          // Fetch sender details only for the first message
-          try {
-            const senderQuery = query(
-              collection(db, "users"),
-              where("uid", "==", senderUid)
-            );
-            const senderSnapshot = await getDocs(senderQuery);
-            const senderName = !senderSnapshot.empty
-              ? senderSnapshot.docs[0].data().firstname +
-                " " +
-                senderSnapshot.docs[0].data().lastname
-              : "Unknown User";
-            groupedNotifications[senderUid] = {
-              senderName,
-              count: 1,
-            };
-          } catch (error) {
-            console.error("Error fetching sender details:", error);
-            groupedNotifications[senderUid] = {
-              senderName: "Unknown User",
-              count: 1,
-            };
-          }
-        } else {
-          groupedNotifications[senderUid].count += 1;
-        }
-      }
-
-      // Convert grouped notifications to an array
-      const notificationsArray = Object.keys(groupedNotifications).map((uid) => ({
-        senderUid: uid,
-        senderName: groupedNotifications[uid].senderName,
-        count: groupedNotifications[uid].count,
+    const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+      const messageNotifications = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        type: "message",
+        timestamp: doc.data().timestamp?.toDate() || new Date(),
+        text: "New message has been received",
       }));
 
-      setNotifications(notificationsArray);
-      setUnreadCount(notificationsArray.reduce((total, item) => total + item.count, 0));
+      setNotifications((prev) => [
+        ...prev.filter((n) => n.type !== "message"), // Remove old message notifications
+        ...messageNotifications,
+      ]);
     });
 
-    return () => unsubscribe();
+    const unsubscribePetReports = onSnapshot(petReportsQuery, (snapshot) => {
+      const reportNotifications = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        type: "pet_report",
+        timestamp: doc.data().updatedAt?.toDate() || new Date(),
+        text: "New report has been received",
+        link: `/incident/${doc.id}`, // Add link to navigate
+      }));
+
+      setNotifications((prev) => [
+        ...prev.filter((n) => n.type !== "pet_report"), // Remove old pet report notifications
+        ...reportNotifications,
+      ]);
+    });
+
+    return () => {
+      unsubscribeMessages();
+      unsubscribePetReports();
+    };
   }, [adminUid]);
 
   // Notifications dropdown menu
@@ -100,10 +90,19 @@ const HeaderBar = () => {
     <Menu>
       {notifications.length > 0 ? (
         notifications.map((notification) => (
-          <Menu.Item key={notification.senderUid}>
-            <span>
-              {notification.count} unread message
-              {notification.count > 1 ? "s" : ""} from <strong>{notification.senderName}</strong>
+          <Menu.Item
+            key={notification.id}
+            onClick={() => {
+              if (notification.type === "pet_report" && notification.link) {
+                navigate(notification.link); // Navigate to incident page
+              }
+            }}
+          >
+            <span style={{ cursor: "pointer" }}>
+              {notification.text} <br />
+              <small style={{ color: "gray" }}>
+                {moment(notification.timestamp).fromNow()}
+              </small>
             </span>
           </Menu.Item>
         ))
@@ -146,7 +145,7 @@ const HeaderBar = () => {
       <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
         {/* Notifications */}
         <Dropdown overlay={notificationMenu} trigger={["click"]}>
-          <Badge count={unreadCount} offset={[-3, 10]}>
+          <Badge count={notifications.length} offset={[-3, 10]}>
             <BellOutlined style={{ fontSize: "18px", cursor: "pointer" }} />
           </Badge>
         </Dropdown>
